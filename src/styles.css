@@ -4,9 +4,9 @@
   --text: #172033;
   --muted: #68758a;
   --border: #dfe5ee;
-  --primary: #176c64;
-  --primary-dark: #0d4f49;
-  --accent: #d97706;
+  --primary: #1668c7;
+  --primary-dark: #0f4e9c;
+  --accent: #4a90e2;
   --danger: #b42318;
   --ok: #14723a;
   color: var(--text);
@@ -63,9 +63,9 @@ a {
 .login {
   align-items: center;
   background:
-    linear-gradient(135deg, rgba(23, 108, 100, 0.14), transparent 38%),
-    linear-gradient(315deg, rgba(217, 119, 6, 0.16), transparent 34%),
-    #f7faf8;
+    linear-gradient(135deg, rgba(22, 104, 199, 0.16), transparent 38%),
+    linear-gradient(315deg, rgba(74, 144, 226, 0.16), transparent 34%),
+    #f5f8fd;
   display: flex;
   min-height: 100vh;
   justify-content: center;
@@ -76,8 +76,8 @@ a {
 
 .login::before {
   background-image:
-    linear-gradient(rgba(23, 108, 100, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 108, 100, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(22, 104, 199, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22, 104, 199, 0.08) 1px, transparent 1px);
   background-size: 34px 34px;
   content: "";
   inset: 0;
@@ -87,7 +87,7 @@ a {
 
 .loginPanel {
   background: var(--surface);
-  border: 1px solid rgba(23, 108, 100, 0.16);
+  border: 1px solid rgba(22, 104, 199, 0.16);
   border-radius: 8px;
   box-shadow: 0 28px 80px rgba(23, 32, 51, 0.16);
   display: flex;
@@ -100,7 +100,7 @@ a {
 }
 
 .loginBrand {
-  background: #123b38;
+  background: #0b2a5b;
   color: white;
   display: flex;
   flex: 1 1 48%;
@@ -111,20 +111,24 @@ a {
 
 .brandMark {
   align-items: center;
-  background: #f5b94c;
-  border-radius: 8px;
-  color: #123b38;
+  background: #ffffff;
+  border-radius: 12px;
+  color: var(--primary);
   display: flex;
-  font-size: 24px;
-  font-weight: 900;
   height: 52px;
   justify-content: center;
   margin-bottom: auto;
+  padding: 8px;
   width: 52px;
 }
 
+.brandMark svg {
+  height: 100%;
+  width: 100%;
+}
+
 .loginBrand span {
-  color: #aee1d8;
+  color: #a9c9f5;
   font-size: 13px;
   font-weight: 800;
 }
@@ -136,7 +140,7 @@ a {
 }
 
 .loginBrand p {
-  color: #d9f1ed;
+  color: #d6e6fb;
   line-height: 1.6;
   margin: 0;
   max-width: 310px;
@@ -159,7 +163,7 @@ a {
 }
 
 .loginFormHeader > svg {
-  background: #e5f4f1;
+  background: #e6f0fc;
   border-radius: 8px;
   color: var(--primary);
   height: 44px;
@@ -218,7 +222,7 @@ a {
 
 .passwordField > div:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(23, 108, 100, 0.14);
+  box-shadow: 0 0 0 3px rgba(22, 104, 199, 0.16);
 }
 
 .loginForm .primary {
@@ -243,10 +247,26 @@ a {
   flex-direction: column;
   gap: 24px;
   padding: 24px 18px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar strong {
   font-size: 20px;
+}
+
+.sidebarBrand {
+  align-items: center;
+  color: #ffffff;
+  display: flex;
+  gap: 10px;
+}
+
+.sidebarBrand svg {
+  height: 28px;
+  width: 28px;
 }
 
 .sidebar nav {
@@ -545,6 +565,12 @@ fieldset {
   width: auto;
 }
 
+.editorHint {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 0;
+}
+
 .formRow {
   align-items: center;
 }
@@ -632,6 +658,23 @@ fieldset {
   white-space: nowrap;
   max-width: 240px;
 }
+.chatList button .chatListPreview {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  max-width: 100%;
+  width: 100%;
+}
+.chatList button .chatListPreview > span {
+  flex: 1;
+  max-width: none;
+}
+.chatList button .chatListPreview time {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 11px;
+}
 .chatThread {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -674,7 +717,7 @@ fieldset {
   color: #fff;
 }
 .chatMessages .bubble.admin .who {
-  color: #cfe9e4;
+  color: #cfe0f7;
 }
 .chatMessages .bubble.bot {
   align-self: flex-start;
@@ -695,4 +738,65 @@ fieldset {
   color: var(--muted);
   padding: 24px;
   margin: 0;
+}
+
+/* 편집 중인 리스트 항목 강조 */
+.list > div.editing {
+  background: #eef4fd;
+  border-left: 3px solid var(--primary);
+  margin: 0 -8px;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* 갱신 중 상단 안내 바 */
+.syncBar {
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  left: 50%;
+  padding: 4px 14px;
+  position: fixed;
+  border-radius: 0 0 8px 8px;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 20;
+}
+
+/* 저장·삭제 결과 토스트 */
+.toastHost {
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: fixed;
+  right: 20px;
+  z-index: 30;
+}
+.toast {
+  animation: toastIn 0.18s ease-out;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(23, 32, 51, 0.18);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  min-width: 200px;
+  padding: 12px 16px;
+}
+.toast.success {
+  background: var(--ok);
+}
+.toast.error {
+  background: var(--danger);
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

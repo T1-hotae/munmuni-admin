@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(npm run build)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\USER\\Desktop\\han-non-e\\src\\services"
+    ]
+  }
+}

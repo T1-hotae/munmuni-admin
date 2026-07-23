@@ -1,4 +1,4 @@
-import { BarChart3, Edit3, FileQuestion, ListChecks, LockKeyhole, LogOut, MessageSquare, Newspaper, PhoneCall, Save, Send, ShieldCheck, Trash2 } from 'lucide-react'
+import { BarChart3, BookUser, Edit3, FileQuestion, ListChecks, LockKeyhole, LogOut, MessageSquare, Newspaper, PhoneCall, Save, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, Route, Routes } from 'react-router-dom'
 import {
@@ -6,10 +6,10 @@ import {
   groupInquiries,
   loadCategories,
   loadChecklists,
+  loadContacts,
   loadFaqs,
   loadInquiries,
   loadNotices,
-  loadPresets,
   markConversationReadByAdmin,
   removeDocument,
   saveChecklist,
@@ -21,27 +21,94 @@ import {
 } from './data'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { ADMIN_LOGIN_EMAIL, auth, hasFirebaseConfig } from './firebase'
-import type { Category, CategoryId, ChatMessage, Checklist, Conversation, FaqEntry, Inquiry, KeywordPreset, Notice } from './types'
+import type { Category, CategoryId, ChatMessage, Checklist, Contact, Conversation, FaqEntry, Inquiry, Notice } from './types'
 
 type Store = {
   categories: Category[]
-  presets: KeywordPreset[]
   notices: Notice[]
   faqs: FaqEntry[]
   checklists: Checklist[]
+  contacts: Contact[]
   inquiries: Inquiry[]
 }
 
 const emptyStore: Store = {
   categories: [],
-  presets: [],
   notices: [],
   faqs: [],
   checklists: [],
+  contacts: [],
   inquiries: [],
 }
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}`
+
+// 내선번호 → 걸 수 있는 전체 번호. 3XXX → 031-280-3XXX, 7XXX → 031-899-7XXX, 국번 포함은 031- 보정.
+const extToPhone = (ext: string) => {
+  const s = ext.trim()
+  if (!s) return ''
+  if (s.startsWith('0')) return s
+  if (s.includes('-')) return `031-${s}`
+  if (/^3\d{3}$/.test(s)) return `031-280-${s}`
+  if (/^7\d{3}$/.test(s)) return `031-899-${s}`
+  return s
+}
+
+// 같은 목록에서 다음 정렬 순서를 계산한다. 순서를 비워두면 맨 뒤에 붙도록 하는 용도.
+const nextOrder = (items: { order: number }[]) =>
+  items.reduce((max, item) => Math.max(max, item.order), 0) + 1
+
+// 채팅 목록용 시각 표기. 오늘이면 시:분, 그 전이면 월/일.
+const formatChatTime = (millis: number) => {
+  if (!millis) return ''
+  const date = new Date(millis)
+  const now = new Date()
+  const sameDay = date.toDateString() === now.toDateString()
+  return sameDay
+    ? date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    : date.toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })
+}
+
+// 화면 우하단 토스트. 저장/삭제 결과를 관리자에게 짧게 알려준다.
+type Toast = { id: number; text: string; kind: 'success' | 'error' }
+let toastSeq = 0
+let toastListeners: Array<(toast: Toast) => void> = []
+const notify = (text: string, kind: Toast['kind'] = 'success') => {
+  const toast = { id: (toastSeq += 1), text, kind }
+  toastListeners.forEach((listener) => listener(toast))
+}
+
+function ToastHost() {
+  const [toasts, setToasts] = useState<Toast[]>([])
+  useEffect(() => {
+    const listener = (toast: Toast) => {
+      setToasts((prev) => [...prev, toast])
+      setTimeout(() => setToasts((prev) => prev.filter((item) => item.id !== toast.id)), 2600)
+    }
+    toastListeners.push(listener)
+    return () => {
+      toastListeners = toastListeners.filter((item) => item !== listener)
+    }
+  }, [])
+  if (toasts.length === 0) return null
+  return (
+    <div className="toastHost" aria-live="polite">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast ${toast.kind}`}>{toast.text}</div>
+      ))}
+    </div>
+  )
+}
+
+// 두 겹의 둥근 사각형이 겹친 문무니 로고 마크. currentColor를 따라 색이 바뀐다.
+function Logo({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect x="41" y="13" width="46" height="46" rx="15" stroke="currentColor" strokeWidth="13" />
+      <rect x="13" y="41" width="46" height="46" rx="15" stroke="currentColor" strokeWidth="13" />
+    </svg>
+  )
+}
 
 function useAuthState() {
   const [authenticated, setAuthenticated] = useState(false)
@@ -68,31 +135,33 @@ function useAuthState() {
 function useStore(authenticated: boolean) {
   const [store, setStore] = useState<Store>(emptyStore)
   const [loading, setLoading] = useState(false)
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [error, setError] = useState('')
   const refresh = async () => {
     if (!authenticated) return
     setLoading(true)
     setError('')
     try {
-      const [categories, presets, notices, faqs, checklists, inquiries] = await Promise.all([
+      const [categories, notices, faqs, checklists, contacts, inquiries] = await Promise.all([
         loadCategories(),
-        loadPresets(),
         loadNotices(),
         loadFaqs(),
         loadChecklists(),
+        loadContacts(),
         loadInquiries(),
       ])
-      setStore({ categories, presets, notices, faqs, checklists, inquiries })
+      setStore({ categories, notices, faqs, checklists, contacts, inquiries })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Firebase 데이터를 불러오지 못했습니다.')
     } finally {
       setLoading(false)
+      setLoadedOnce(true)
     }
   }
   useEffect(() => {
     void refresh()
   }, [authenticated])
-  return { store, loading, error, refresh }
+  return { store, loading, loadedOnce, error, refresh }
 }
 
 function LoginPage() {
@@ -122,7 +191,7 @@ function LoginPage() {
     <main className="login">
       <section className="loginPanel" aria-label="문무니 관리자 로그인">
         <div className="loginBrand">
-          <div className="brandMark">무</div>
+          <div className="brandMark"><Logo /></div>
           <span>관리자 콘솔</span>
           <h1>문무니</h1>
           <p>학생 문의와 안내 데이터를 관리하는 전용 데스크톱 앱입니다.</p>
@@ -161,19 +230,21 @@ function LoginPage() {
 
 function Shell({
   children,
-  store,
   loadError,
+  syncing,
   onLogout,
 }: {
   children: React.ReactNode
-  store: Store
   loadError: string
+  syncing: boolean
   onLogout: () => void
 }) {
   return (
     <div className="app">
+      {syncing && <div className="syncBar">동기화 중…</div>}
+      <ToastHost />
       <aside className="sidebar">
-        <strong>문무니</strong>
+        <div className="sidebarBrand"><Logo /><strong>문무니</strong></div>
         <nav>
           <Link to="/"><BarChart3 size={18} />통계</Link>
           <Link to="/chat"><MessageSquare size={18} />채팅 상담</Link>
@@ -182,6 +253,7 @@ function Shell({
           <Link to="/edit/faqs"><FileQuestion size={18} />FAQ</Link>
           <Link to="/edit/notices"><Newspaper size={18} />원문 공지</Link>
           <Link to="/edit/checklists"><ListChecks size={18} />체크리스트</Link>
+          <Link to="/edit/contacts"><BookUser size={18} />전화번호부</Link>
         </nav>
         <button type="button" onClick={onLogout}>
           <LogOut size={18} />로그아웃
@@ -193,9 +265,6 @@ function Shell({
           <div className="notice">
             Firebase 연결값이 없습니다. `.env`에 VITE_FIREBASE_* 값을 넣은 뒤 앱을 다시 실행하세요.
           </div>
-        )}
-        {!loadError && hasFirebaseConfig && store.categories.length === 0 && (
-          <div className="notice">먼저 학생 웹의 seed를 실행해 기본 데이터를 넣으세요.</div>
         )}
         {children}
       </main>
@@ -248,37 +317,49 @@ function Stats({ store }: { store: Store }) {
 
       <div className="panel">
         <h2>많이 묻는 키워드</h2>
-        <table>
-          <thead><tr><th>키워드</th><th>전체</th><th>채팅</th><th>전화</th></tr></thead>
-          <tbody>
-            {topKeywords.map((group) => (
-              <tr key={group.key}>
-                <td>{group.keyword}</td>
-                <td>{group.total}</td>
-                <td>{group.chat}</td>
-                <td>{group.phone}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {topKeywords.length === 0 ? (
+          <p className="editorHint">아직 집계된 문의가 없습니다.</p>
+        ) : (
+          <table>
+            <thead><tr><th>키워드</th><th>전체</th><th>채팅</th><th>전화</th></tr></thead>
+            <tbody>
+              {topKeywords.map((group) => (
+                <tr key={group.key}>
+                  <td>{group.keyword}</td>
+                  <td>{group.total}</td>
+                  <td>{group.chat}</td>
+                  <td>{group.phone}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <div className="twoColumnStats">
         <div className="panel">
           <h2>FAQ 조회수 TOP 5</h2>
-          <ol className="rankList">
-            {topFaqs.map((faq) => (
-              <li key={faq.id}><span>{faq.question}</span><strong>{faq.viewCount}</strong></li>
-            ))}
-          </ol>
+          {topFaqs.length === 0 ? (
+            <p className="editorHint">아직 등록된 FAQ가 없습니다.</p>
+          ) : (
+            <ol className="rankList">
+              {topFaqs.map((faq) => (
+                <li key={faq.id}><span>{faq.question}</span><strong>{faq.viewCount}</strong></li>
+              ))}
+            </ol>
+          )}
         </div>
         <div className="panel">
           <h2>공지 조회수 TOP 5</h2>
-          <ol className="rankList">
-            {topNotices.map((notice) => (
-              <li key={notice.id}><span>{notice.title}</span><strong>{notice.viewCount}</strong></li>
-            ))}
-          </ol>
+          {topNotices.length === 0 ? (
+            <p className="editorHint">아직 등록된 공지가 없습니다.</p>
+          ) : (
+            <ol className="rankList">
+              {topNotices.map((notice) => (
+                <li key={notice.id}><span>{notice.title}</span><strong>{notice.viewCount}</strong></li>
+              ))}
+            </ol>
+          )}
         </div>
       </div>
     </>
@@ -286,42 +367,54 @@ function Stats({ store }: { store: Store }) {
 }
 
 function LogCall({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
-  const [categoryId, setCategoryId] = useState<CategoryId | ''>('')
-  const [keyword, setKeyword] = useState('')
-  const [detail, setDetail] = useState('')
-  const presets = store.presets.filter((item) => item.categoryId === categoryId)
+  const [categoryId, setCategoryId] = useState<CategoryId>(store.categories[0]?.id ?? '')
+  const [memo, setMemo] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  const save = async (nextKeyword = keyword) => {
-    if (!categoryId || !nextKeyword.trim()) return
-    await createPhoneInquiry(categoryId, nextKeyword.trim(), detail.trim())
-    setKeyword('')
-    setDetail('')
-    await refresh()
+  const label = (id: CategoryId) => store.categories.find((item) => item.id === id)?.label ?? id
+  const phoneMemos = store.inquiries.filter((item) => item.source === 'phone').slice(0, 20)
+
+  const save = async () => {
+    if (!memo.trim()) return
+    setSaving(true)
+    try {
+      await createPhoneInquiry(categoryId || store.categories[0]?.id || 'etc', memo.trim(), '')
+      notify('전화 메모를 저장했습니다.')
+      setMemo('')
+      await refresh()
+    } catch {
+      notify('저장에 실패했습니다.', 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <section>
-      <header className="pageHeader"><div><span>요청사항 2</span><h1>전화 문의 기록</h1></div></header>
+      <header className="pageHeader"><div><span>전화 상담</span><h1>전화 문의 메모</h1></div></header>
       <div className="panel">
-        <h2>1. 카테고리 선택</h2>
-        <div className="buttonGrid">
-          {store.categories.map((category) => (
-            <button key={category.id} className={categoryId === category.id ? 'selected' : ''} onClick={() => setCategoryId(category.id)}>
-              {category.label}
-            </button>
-          ))}
-        </div>
-        {categoryId && (
-          <>
-            <h2>2. 예시 질문 선택</h2>
-            <div className="buttonGrid">
-              {presets.map((preset) => <button key={preset.id} onClick={() => void save(preset.label)}>{preset.label}</button>)}
-            </div>
-            <h2>직접 입력</h2>
-            <input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="질문 요약" />
-            <textarea value={detail} onChange={(event) => setDetail(event.target.value)} placeholder="상세 메모" rows={4} />
-            <button className="primary" onClick={() => void save()}>기록 저장</button>
-          </>
+        <p className="editorHint">전화로 받은 문의를 간단히 메모하세요. 통계의 전화 문의 수·카테고리 분포에 집계됩니다.</p>
+        <FormRow>
+          <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+            {store.categories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+          </select>
+        </FormRow>
+        <textarea value={memo} onChange={(event) => setMemo(event.target.value)} rows={4} placeholder="문의 내용 메모 (예: 전과 신청 기간 문의)" />
+        <button className="primary" disabled={saving} onClick={() => void save()}>{saving ? '저장 중…' : '메모 저장'}</button>
+      </div>
+      <div className="panel">
+        <h2>최근 전화 메모</h2>
+        {phoneMemos.length === 0 ? (
+          <p className="editorHint">아직 기록된 전화 메모가 없습니다.</p>
+        ) : (
+          <div className="list">
+            {phoneMemos.map((item) => (
+              <div key={item.id}>
+                <span>[{label(item.categoryId)}] {item.keyword}</span>
+                <small>{new Date(item.createdAt).toLocaleDateString('ko-KR')}</small>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </section>
@@ -367,10 +460,11 @@ function ChatConsole({ store }: { store: Store }) {
   const who = (from: ChatMessage['from']) =>
     from === 'admin' ? '관리자' : from === 'ai' ? 'AI' : from === 'bot' ? '자동응답' : '학생'
 
-  // 학생이 실제로 메시지를 보내지 않은 대화(자동 안내만 있는 빈 대화)는 목록에서 숨긴다.
+  // AI 상담(needsHuman=false)은 상담사에게 노출하지 않는다.
+  // 상담사 연결을 요청한 대화(관리자 문의·에스컬레이션)만, 그리고 학생이 실제로 메시지를 보낸 것만 표시한다.
   const orderedConversations = conversations
-    .filter((conversation) => conversation.studentMessageCount > 0)
-    .sort((a, b) => Number(b.needsHuman) - Number(a.needsHuman))
+    .filter((conversation) => conversation.needsHuman && conversation.studentMessageCount > 0)
+    .sort((a, b) => b.lastMessageAt - a.lastMessageAt)
 
   return (
     <section>
@@ -389,7 +483,10 @@ function ChatConsole({ store }: { store: Store }) {
                 {conversation.needsHuman ? ' 🙋 상담요청' : ''}
                 {conversation.unreadForAdmin ? ' ●' : ''}
               </strong>
-              <span>{conversation.lastMessage || '새 대화'}</span>
+              <span className="chatListPreview">
+                <span>{conversation.lastMessage || '새 대화'}</span>
+                {conversation.lastMessageAt ? <time>{formatChatTime(conversation.lastMessageAt)}</time> : null}
+              </span>
             </button>
           ))}
         </aside>
@@ -424,56 +521,79 @@ function ChatConsole({ store }: { store: Store }) {
 }
 
 function CategoriesEditor({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
-  const [draft, setDraft] = useState<Category>({
-    id: 'etc',
+  const emptyDraft = (): Category => ({
+    id: makeId('cat'),
     label: '',
     description: '',
     phone: '',
     hours: '',
-    order: 999,
+    order: 0,
   })
+  const [draft, setDraft] = useState<Category>(emptyDraft)
+  const isEditing = store.categories.some((item) => item.id === draft.id)
+
+  const save = async () => {
+    if (!draft.label.trim()) return
+    const order = draft.order > 0 ? draft.order : nextOrder(store.categories)
+    try {
+      await saveDocument('categories', { ...draft, order, label: draft.label.trim() })
+      notify(isEditing ? '카테고리를 수정했습니다.' : '카테고리를 추가했습니다.')
+      setDraft(emptyDraft())
+      await refresh()
+    } catch {
+      notify('저장에 실패했습니다.', 'error')
+    }
+  }
 
   return (
-    <EditorShell title="카테고리 관리" request="요청사항 4">
+    <EditorShell title="카테고리 관리" request="카테고리">
+      <p className="editorHint">
+        {isEditing
+          ? '카테고리를 수정하고 있습니다. 이름·전화·설명을 고쳐 저장하세요.'
+          : '새 카테고리를 추가합니다. 이름만 입력하면 되고, 내부 ID는 자동으로 부여됩니다.'}
+      </p>
       <FormRow>
-        <select value={draft.id} onChange={(event) => setDraft({ ...draft, id: event.target.value as CategoryId })}>
-          <option value="transfer">transfer</option>
-          <option value="course">course</option>
-          <option value="leave">leave</option>
-          <option value="etc">etc</option>
-        </select>
-        <input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="표시 이름" />
+        <input value={draft.label} onChange={(event) => setDraft({ ...draft, label: event.target.value })} placeholder="카테고리 이름 (예: 장학금)" />
         <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="전화번호" />
       </FormRow>
       <input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="설명" />
       <input value={draft.hours} onChange={(event) => setDraft({ ...draft, hours: event.target.value })} placeholder="운영 시간" />
       <input
         type="number"
-        value={draft.order}
-        onChange={(event) => setDraft({ ...draft, order: Number(event.target.value) })}
-        placeholder="순서"
+        min={1}
+        value={draft.order || ''}
+        onChange={(event) => setDraft({ ...draft, order: event.target.value === '' ? 0 : Number(event.target.value) })}
+        placeholder="표시 순서 (비우면 맨 뒤)"
+        aria-label="표시 순서"
       />
-      <button className="primary" onClick={async () => { await saveDocument('categories', draft); await refresh() }}>저장</button>
+      <FormRow>
+        <button className="primary" onClick={() => void save()}>{isEditing ? '수정 저장' : '카테고리 추가'}</button>
+        {isEditing && <button onClick={() => setDraft(emptyDraft())}>새 카테고리 입력</button>}
+      </FormRow>
+      <h2>현재 카테고리</h2>
       <List
         rows={store.categories}
-        render={(item) => `${item.order}. ${item.label} · ${item.phone}`}
+        render={(item) => `${item.order}. ${item.label}${item.phone ? ` · ${item.phone}` : ''}`}
         remove={(id) => removeDocument('categories', id).then(refresh)}
         onSelect={setDraft}
+        selectedId={draft.id}
+        emptyText="아직 등록된 카테고리가 없습니다."
       />
     </EditorShell>
   )
 }
 
 function NoticesEditor({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
-  const [draft, setDraft] = useState<Notice>({
+  const emptyNotice = (): Notice => ({
     id: makeId('notice'),
-    categoryId: 'transfer',
+    categoryId: store.categories[0]?.id ?? '',
     title: '',
     url: '',
     postedAt: Date.now(),
-    order: 999,
+    order: 0,
     viewCount: 0,
   })
+  const [draft, setDraft] = useState<Notice>(emptyNotice)
   const isEditing = store.notices.some((item) => item.id === draft.id)
   const [listFilter, setListFilter] = useState<CategoryId | 'all'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -484,31 +604,51 @@ function NoticesEditor({ store, refresh }: { store: Store; refresh: () => Promis
     return matchesCategory && matchesQuery
   })
 
+  const trimmedUrl = draft.url.trim()
+  const urlValid = /^https?:\/\//i.test(trimmedUrl)
+  const canSave = draft.title.trim().length > 0 && urlValid
+
   return (
-    <EditorShell title="원문 공지 관리" request="요청사항 4">
+    <EditorShell title="원문 공지 관리" request="원문 공지">
+      <p className="editorHint">
+        원문 공지는 <strong>제목 + 원문 URL</strong> 형태로 등록합니다. 학생 화면에서는 제목을 누르면 원문 링크(새 탭)로 이동합니다.
+      </p>
       <FormRow>
         <select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value as CategoryId })}>
           {store.categories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
         </select>
         <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="공지 제목" />
       </FormRow>
-      <input value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="원문 URL" />
+      <input value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} placeholder="원문 URL (예: https://…)" />
+      {trimmedUrl.length > 0 && !urlValid && <small className="error">URL은 http:// 또는 https:// 로 시작해야 합니다.</small>}
       <input
         type="number"
-        value={draft.order}
-        onChange={(event) => setDraft({ ...draft, order: Number(event.target.value) })}
-        placeholder="순서"
+        min={1}
+        value={draft.order || ''}
+        onChange={(event) => setDraft({ ...draft, order: event.target.value === '' ? 0 : Number(event.target.value) })}
+        placeholder="노출 순서 (비우면 맨 뒤에 추가됩니다)"
+        aria-label="노출 순서"
       />
-      <button
-        className="primary"
-        onClick={async () => {
-          await saveDocument('notices', draft)
-          setDraft({ id: makeId('notice'), categoryId: 'transfer', title: '', url: '', postedAt: Date.now(), order: 999, viewCount: 0 })
-          await refresh()
-        }}
-      >
-        {isEditing ? '공지 수정 저장' : '공지 등록'}
-      </button>
+      <FormRow>
+        <button
+          className="primary"
+          disabled={!canSave}
+          onClick={async () => {
+            const order = draft.order > 0 ? draft.order : nextOrder(store.notices.filter((notice) => notice.categoryId === draft.categoryId))
+            try {
+              await saveDocument('notices', { ...draft, order, title: draft.title.trim(), url: trimmedUrl })
+              notify(isEditing ? '공지를 수정했습니다.' : '공지를 등록했습니다.')
+              setDraft(emptyNotice())
+              await refresh()
+            } catch {
+              notify('저장에 실패했습니다.', 'error')
+            }
+          }}
+        >
+          {isEditing ? '공지 수정 저장' : '공지 등록'}
+        </button>
+        {isEditing && <button onClick={() => setDraft(emptyNotice())}>새로 입력</button>}
+      </FormRow>
       <div className="tabs">
         <button className={listFilter === 'all' ? 'active' : ''} onClick={() => setListFilter('all')}>전체</button>
         {store.categories.map((category) => (
@@ -521,19 +661,22 @@ function NoticesEditor({ store, refresh }: { store: Store; refresh: () => Promis
           </button>
         ))}
       </div>
-      <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="제목 검색" />
+      <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="제목 검색" aria-label="공지 제목 검색" />
       <List
         rows={filteredNotices}
         render={(item) => `${item.title} · 조회 ${item.viewCount}`}
         remove={(id) => removeDocument('notices', id).then(refresh)}
         onSelect={setDraft}
+        selectedId={draft.id}
+        emptyText={searchQuery ? '검색 결과가 없습니다.' : '아직 등록된 공지가 없습니다.'}
       />
     </EditorShell>
   )
 }
 
 function FaqEditor({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
-  const [draft, setDraft] = useState<FaqEntry>({ id: makeId('faq'), categoryId: 'transfer', question: '', answer: '', answerImageUrls: [], relatedNoticeIds: [], order: 999, pinned: false, viewCount: 0, updatedAt: Date.now() })
+  const emptyFaq = (): FaqEntry => ({ id: makeId('faq'), categoryId: store.categories[0]?.id ?? '', question: '', answer: '', answerImageUrls: [], relatedNoticeIds: [], order: 0, pinned: false, showOnHome: false, viewCount: 0, updatedAt: Date.now() })
+  const [draft, setDraft] = useState<FaqEntry>(emptyFaq)
   const [files, setFiles] = useState<File[]>([])
   const [uploading, setUploading] = useState(false)
   const categoryNotices = store.notices.filter((notice) => notice.categoryId === draft.categoryId)
@@ -553,7 +696,7 @@ function FaqEditor({ store, refresh }: { store: Store; refresh: () => Promise<vo
   }
 
   return (
-    <EditorShell title="FAQ 관리" request="요청사항 4">
+    <EditorShell title="FAQ 관리" request="FAQ">
       <FormRow>
         <select value={draft.categoryId} onChange={(event) => setDraft({ ...draft, categoryId: event.target.value as CategoryId })}>
           {store.categories.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
@@ -564,13 +707,19 @@ function FaqEditor({ store, refresh }: { store: Store; refresh: () => Promise<vo
       <FormRow>
         <input
           type="number"
-          value={draft.order}
-          onChange={(event) => setDraft({ ...draft, order: Number(event.target.value) })}
-          placeholder="순서"
+          min={1}
+          value={draft.order || ''}
+          onChange={(event) => setDraft({ ...draft, order: event.target.value === '' ? 0 : Number(event.target.value) })}
+          placeholder="노출 순서 (비우면 맨 뒤)"
+          aria-label="노출 순서"
         />
         <label className="check">
           <input type="checkbox" checked={draft.pinned} onChange={(event) => setDraft({ ...draft, pinned: event.target.checked })} />
           대표 질문으로 상단 고정
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={draft.showOnHome} onChange={(event) => setDraft({ ...draft, showOnHome: event.target.checked })} />
+          홈 '지금 많이 묻는 질문'에 노출
         </label>
       </FormRow>
       <fieldset>
@@ -600,26 +749,40 @@ function FaqEditor({ store, refresh }: { store: Store; refresh: () => Promise<vo
         )}
         <input type="file" multiple accept="image/*" onChange={(event) => setFiles([...event.target.files ?? []])} />
       </fieldset>
-      <button
-        className="primary"
-        disabled={uploading}
-        onClick={async () => {
-          setUploading(true)
-          try {
-            const uploadedUrls = await uploadAnswerImages(draft.id, files)
-            const nextDraft = { ...draft, answerImageUrls: [...draft.answerImageUrls, ...uploadedUrls] }
-            await saveDocument('faqEntries', nextDraft)
-            setFiles([])
-            setDraft({ id: makeId('faq'), categoryId: 'transfer', question: '', answer: '', answerImageUrls: [], relatedNoticeIds: [], order: 999, pinned: false, viewCount: 0, updatedAt: Date.now() })
-            await refresh()
-          } finally {
-            setUploading(false)
-          }
-        }}
-      >
-        {uploading ? '저장 중…' : isEditing ? 'FAQ 수정 저장' : 'FAQ 추가'}
-      </button>
-      <List rows={store.faqs} render={(item) => item.question} remove={(id) => removeDocument('faqEntries', id).then(refresh)} onSelect={(item) => { setDraft(item); setFiles([]) }} />
+      <FormRow>
+        <button
+          className="primary"
+          disabled={uploading}
+          onClick={async () => {
+            setUploading(true)
+            try {
+              const uploadedUrls = await uploadAnswerImages(draft.id, files)
+              const order = draft.order > 0 ? draft.order : nextOrder(store.faqs.filter((faq) => faq.categoryId === draft.categoryId))
+              const nextDraft = { ...draft, order, answerImageUrls: [...draft.answerImageUrls, ...uploadedUrls] }
+              await saveDocument('faqEntries', nextDraft)
+              notify(isEditing ? 'FAQ를 수정했습니다.' : 'FAQ를 추가했습니다.')
+              setFiles([])
+              setDraft(emptyFaq())
+              await refresh()
+            } catch {
+              notify('저장에 실패했습니다.', 'error')
+            } finally {
+              setUploading(false)
+            }
+          }}
+        >
+          {uploading ? '저장 중…' : isEditing ? 'FAQ 수정 저장' : 'FAQ 추가'}
+        </button>
+        {isEditing && !uploading && <button onClick={() => { setDraft(emptyFaq()); setFiles([]) }}>새로 입력</button>}
+      </FormRow>
+      <List
+        rows={store.faqs}
+        render={(item) => `${item.showOnHome ? '🏠 ' : ''}${item.pinned ? '📌 ' : ''}${item.question}`}
+        remove={(id) => removeDocument('faqEntries', id).then(refresh)}
+        onSelect={(item) => { setDraft(item); setFiles([]) }}
+        selectedId={draft.id}
+        emptyText="아직 등록된 FAQ가 없습니다."
+      />
     </EditorShell>
   )
 }
@@ -628,39 +791,249 @@ function ChecklistEditor({ store, refresh }: { store: Store; refresh: () => Prom
   const [selectedId, setSelectedId] = useState(store.checklists[0]?.id ?? '')
   const selected = store.checklists.find((item) => item.id === selectedId)
   const [draft, setDraft] = useState<Checklist | null>(selected ?? null)
+  const [newCategoryId, setNewCategoryId] = useState('')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     setDraft(selected ?? null)
   }, [selectedId, store.checklists])
 
-  if (!draft) return <EditorShell title="체크리스트 관리" request="요청사항 4">체크리스트가 없습니다.</EditorShell>
+  const categoryLabel = (id: CategoryId) =>
+    store.categories.find((category) => category.id === id)?.label ?? id
+
+  // 아직 체크리스트가 없는 카테고리만 신규 생성 대상으로 제공한다.
+  const categoriesWithout = store.categories.filter(
+    (category) => !store.checklists.some((checklist) => checklist.categoryId === category.id),
+  )
+  const effectiveNewCategoryId = categoriesWithout.some((category) => category.id === newCategoryId)
+    ? newCategoryId
+    : categoriesWithout[0]?.id ?? ''
+
+  const createChecklist = async () => {
+    if (!effectiveNewCategoryId) return
+    setCreating(true)
+    try {
+      const category = store.categories.find((item) => item.id === effectiveNewCategoryId)
+      const id = `checklist-${effectiveNewCategoryId}`
+      await saveChecklist({
+        id,
+        categoryId: effectiveNewCategoryId,
+        order: category?.order ?? store.checklists.length + 1,
+        items: [{ id: makeId('item'), label: '', content: '', order: 1 }],
+      })
+      await refresh()
+      setSelectedId(id)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const removeChecklist = async () => {
+    if (!draft) return
+    if (!window.confirm('이 체크리스트를 삭제할까요? 되돌릴 수 없습니다.')) return
+    try {
+      await removeDocument('checklists', draft.id)
+      notify('체크리스트를 삭제했습니다.')
+      await refresh()
+      setSelectedId('')
+    } catch {
+      notify('삭제에 실패했습니다.', 'error')
+    }
+  }
 
   return (
-    <EditorShell title="체크리스트 관리" request="요청사항 4">
-      <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
-        {store.checklists.map((item) => (
-          <option key={item.id} value={item.id}>
-            {store.categories.find((category) => category.id === item.categoryId)?.label ?? item.categoryId}
-          </option>
+    <EditorShell title="체크리스트 관리" request="체크리스트">
+      <p className="editorHint">
+        카테고리별 '신청 전 체크' 목록을 관리합니다. 전과 등 새 카테고리의 체크리스트를 아래에서 만들 수 있습니다.
+      </p>
+
+      <fieldset>
+        <legend>새 체크리스트 만들기</legend>
+        {categoriesWithout.length > 0 ? (
+          <FormRow>
+            <select value={effectiveNewCategoryId} onChange={(event) => setNewCategoryId(event.target.value)}>
+              {categoriesWithout.map((category) => (
+                <option key={category.id} value={category.id}>{category.label}</option>
+              ))}
+            </select>
+            <button className="primary" disabled={creating || !effectiveNewCategoryId} onClick={() => void createChecklist()}>
+              {creating ? '생성 중…' : '새 체크리스트 만들기'}
+            </button>
+          </FormRow>
+        ) : store.categories.length === 0 ? (
+          <p className="editorHint">먼저 카테고리를 등록하세요.</p>
+        ) : (
+          <p className="editorHint">모든 카테고리에 체크리스트가 있습니다.</p>
+        )}
+      </fieldset>
+
+      {store.checklists.length === 0 ? (
+        <p className="editorHint">아직 체크리스트가 없습니다. 위에서 카테고리를 선택해 만들어 주세요.</p>
+      ) : (
+        <>
+          <h2>체크리스트 편집</h2>
+          <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
+            {store.checklists.map((item) => (
+              <option key={item.id} value={item.id}>{categoryLabel(item.categoryId)}</option>
+            ))}
+          </select>
+          {draft && (
+            <>
+              {draft.items.map((item, index) => (
+                <FormRow key={item.id}>
+                  <input value={item.label} placeholder="항목명" onChange={(event) => {
+                    const items = [...draft.items]
+                    items[index] = { ...item, label: event.target.value }
+                    setDraft({ ...draft, items })
+                  }} />
+                  <input value={item.content} placeholder="내용" onChange={(event) => {
+                    const items = [...draft.items]
+                    items[index] = { ...item, content: event.target.value }
+                    setDraft({ ...draft, items })
+                  }} />
+                  <button onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 size={16} /></button>
+                </FormRow>
+              ))}
+              <button onClick={() => setDraft({ ...draft, items: [...draft.items, { id: makeId('item'), label: '', content: '', order: draft.items.length + 1 }] })}>항목 추가</button>
+              <FormRow>
+                <button className="primary" onClick={async () => {
+                  try {
+                    await saveChecklist(draft)
+                    notify('체크리스트를 저장했습니다.')
+                    await refresh()
+                  } catch {
+                    notify('저장에 실패했습니다.', 'error')
+                  }
+                }}><Save size={18} />저장</button>
+                <button onClick={() => void removeChecklist()}><Trash2 size={16} />체크리스트 삭제</button>
+              </FormRow>
+            </>
+          )}
+        </>
+      )}
+    </EditorShell>
+  )
+}
+
+function ContactsEditor({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
+  const emptyContact = (): Contact => ({
+    id: makeId('c'),
+    team: '',
+    topic: '',
+    ext: '',
+    phone: '',
+    group: '학사',
+    categories: [],
+    priority: 2,
+    order: 0,
+  })
+  const [draft, setDraft] = useState<Contact>(emptyContact)
+  const isEditing = store.contacts.some((item) => item.id === draft.id)
+  const [listFilter, setListFilter] = useState<CategoryId | 'all'>('all')
+
+  const filtered = store.contacts
+    .filter((contact) => listFilter === 'all' || contact.categories.includes(listFilter))
+    .sort((a, b) => a.order - b.order)
+
+  const toggleCategory = (categoryId: CategoryId, checked: boolean) => {
+    setDraft({
+      ...draft,
+      categories: checked
+        ? [...draft.categories, categoryId]
+        : draft.categories.filter((id) => id !== categoryId),
+    })
+  }
+
+  const save = async () => {
+    if (!draft.team.trim() || !draft.ext.trim()) return
+    const phone = extToPhone(draft.ext)
+    const order = draft.order > 0 ? draft.order : nextOrder(store.contacts)
+    try {
+      await saveDocument('contacts', {
+        ...draft,
+        order,
+        team: draft.team.trim(),
+        topic: draft.topic.trim(),
+        ext: draft.ext.trim(),
+        phone,
+      })
+      notify(isEditing ? '연락처를 수정했습니다.' : '연락처를 추가했습니다.')
+      setDraft(emptyContact())
+      await refresh()
+    } catch {
+      notify('저장에 실패했습니다.', 'error')
+    }
+  }
+
+  return (
+    <EditorShell title="전화번호부 관리" request="전화번호부">
+      <p className="editorHint">
+        학내 부서 연락처를 등록합니다. 내선번호를 입력하면 전화번호는 자동으로 계산됩니다(예: 3542 → 031-280-3542). 개인 실명은 넣지 마세요.
+      </p>
+      <FormRow>
+        <input value={draft.team} onChange={(event) => setDraft({ ...draft, team: event.target.value })} placeholder="부서/팀명 (예: 교무팀)" />
+        <input value={draft.topic} onChange={(event) => setDraft({ ...draft, topic: event.target.value })} placeholder="담당 업무 (예: 학적·성적)" />
+      </FormRow>
+      <FormRow>
+        <input value={draft.ext} onChange={(event) => setDraft({ ...draft, ext: event.target.value })} placeholder="내선번호 (예: 3542)" />
+        <input value={draft.group} onChange={(event) => setDraft({ ...draft, group: event.target.value })} placeholder="분류 (예: 학사, 장학·복지)" />
+      </FormRow>
+      <small className="editorHint">계산된 전화번호: {extToPhone(draft.ext) || '—'}</small>
+      <fieldset>
+        <legend>연결 카테고리</legend>
+        {store.categories.map((category) => (
+          <label key={category.id} className="check">
+            <input
+              type="checkbox"
+              checked={draft.categories.includes(category.id)}
+              onChange={(event) => toggleCategory(category.id, event.target.checked)}
+            />
+            {category.label}
+          </label>
         ))}
-      </select>
-      {draft.items.map((item, index) => (
-        <FormRow key={item.id}>
-          <input value={item.label} placeholder="항목명" onChange={(event) => {
-            const items = [...draft.items]
-            items[index] = { ...item, label: event.target.value }
-            setDraft({ ...draft, items })
-          }} />
-          <input value={item.content} placeholder="내용" onChange={(event) => {
-            const items = [...draft.items]
-            items[index] = { ...item, content: event.target.value }
-            setDraft({ ...draft, items })
-          }} />
-          <button onClick={() => setDraft({ ...draft, items: draft.items.filter((_, itemIndex) => itemIndex !== index) })}><Trash2 size={16} /></button>
-        </FormRow>
-      ))}
-      <button onClick={() => setDraft({ ...draft, items: [...draft.items, { id: makeId('item'), label: '', content: '', order: draft.items.length + 1 }] })}>항목 추가</button>
-      <button className="primary" onClick={async () => { await saveChecklist(draft); await refresh() }}><Save size={18} />저장</button>
+      </fieldset>
+      <FormRow>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={draft.priority === 1}
+            onChange={(event) => setDraft({ ...draft, priority: event.target.checked ? 1 : 2 })}
+          />
+          카테고리 전화 문의 모달에 대표로 노출
+        </label>
+        <input
+          type="number"
+          min={1}
+          value={draft.order || ''}
+          onChange={(event) => setDraft({ ...draft, order: event.target.value === '' ? 0 : Number(event.target.value) })}
+          placeholder="순서 (비우면 맨 뒤)"
+          aria-label="순서"
+        />
+      </FormRow>
+      <FormRow>
+        <button className="primary" onClick={() => void save()}>{isEditing ? '연락처 수정 저장' : '연락처 추가'}</button>
+        {isEditing && <button onClick={() => setDraft(emptyContact())}>새 연락처 입력</button>}
+      </FormRow>
+      <div className="tabs">
+        <button className={listFilter === 'all' ? 'active' : ''} onClick={() => setListFilter('all')}>전체</button>
+        {store.categories.map((category) => (
+          <button
+            key={category.id}
+            className={listFilter === category.id ? 'active' : ''}
+            onClick={() => setListFilter(category.id)}
+          >
+            {category.label}
+          </button>
+        ))}
+      </div>
+      <List
+        rows={filtered}
+        render={(item) => `${item.priority === 1 ? '⭐ ' : ''}[${item.group}] ${item.team} · ${item.topic} · ${item.phone}`}
+        remove={(id) => removeDocument('contacts', id).then(refresh)}
+        onSelect={setDraft}
+        selectedId={draft.id}
+        emptyText="아직 등록된 연락처가 없습니다."
+      />
     </EditorShell>
   )
 }
@@ -678,16 +1051,32 @@ function List<T extends { id: string }>({
   render,
   remove,
   onSelect,
+  selectedId,
+  emptyText = '아직 등록된 항목이 없습니다.',
 }: {
   rows: T[]
   render: (item: T) => string
   remove: (id: string) => Promise<void>
   onSelect?: (item: T) => void
+  selectedId?: string
+  emptyText?: string
 }) {
+  const handleRemove = async (id: string) => {
+    if (!window.confirm('이 항목을 삭제할까요? 되돌릴 수 없습니다.')) return
+    try {
+      await remove(id)
+      notify('삭제되었습니다.')
+    } catch {
+      notify('삭제에 실패했습니다.', 'error')
+    }
+  }
+
+  if (rows.length === 0) return <p className="editorHint">{emptyText}</p>
+
   return (
     <div className="list">
       {rows.map((item) => (
-        <div key={item.id}>
+        <div key={item.id} className={item.id === selectedId ? 'editing' : ''}>
           {onSelect ? (
             <button type="button" className="listSelect" onClick={() => onSelect(item)}>
               {render(item)}
@@ -695,7 +1084,7 @@ function List<T extends { id: string }>({
           ) : (
             <span>{render(item)}</span>
           )}
-          <button onClick={() => void remove(item.id)}><Trash2 size={16} /></button>
+          <button aria-label="삭제" onClick={() => void handleRemove(item.id)}><Trash2 size={16} /></button>
         </div>
       ))}
     </div>
@@ -704,13 +1093,13 @@ function List<T extends { id: string }>({
 
 export default function App() {
   const { authenticated, ready, logout } = useAuthState()
-  const { store, loading, error, refresh } = useStore(authenticated)
+  const { store, loading, loadedOnce, error, refresh } = useStore(authenticated)
   if (!ready) return <div className="loading">불러오는 중입니다.</div>
   if (!authenticated) return <LoginPage />
-  if (loading) return <div className="loading">불러오는 중입니다.</div>
+  if (!loadedOnce) return <div className="loading">불러오는 중입니다.</div>
 
   return (
-    <Shell store={store} loadError={error} onLogout={logout}>
+    <Shell loadError={error} syncing={loading} onLogout={logout}>
       <Routes>
         <Route path="/" element={<Stats store={store} />} />
         <Route path="/chat" element={<ChatConsole store={store} />} />
@@ -719,6 +1108,7 @@ export default function App() {
         <Route path="/edit/faqs" element={<FaqEditor store={store} refresh={refresh} />} />
         <Route path="/edit/notices" element={<NoticesEditor store={store} refresh={refresh} />} />
         <Route path="/edit/checklists" element={<ChecklistEditor store={store} refresh={refresh} />} />
+        <Route path="/edit/contacts" element={<ContactsEditor store={store} refresh={refresh} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Shell>

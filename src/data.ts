@@ -11,6 +11,7 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
+  where,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
@@ -21,11 +22,11 @@ import type {
   CategoryId,
   ChatMessage,
   Checklist,
+  Contact,
   Conversation,
   FaqEntry,
   Inquiry,
   InquiryGroup,
-  KeywordPreset,
   Notice,
 } from './types'
 
@@ -65,17 +66,6 @@ export const loadCategories = () =>
     }
   })
 
-export const loadPresets = () =>
-  load<KeywordPreset>('keywordPresets', (snapshot) => {
-    const data = snapshot.data()
-    return {
-      id: String(data.id ?? snapshot.id),
-      categoryId: String(data.categoryId ?? 'etc') as CategoryId,
-      label: String(data.label ?? ''),
-      order: Number(data.order ?? 0),
-    }
-  })
-
 export const loadNotices = () =>
   load<Notice>('notices', (snapshot) => {
     const data = snapshot.data()
@@ -102,8 +92,25 @@ export const loadFaqs = () =>
       relatedNoticeIds: Array.isArray(data.relatedNoticeIds) ? data.relatedNoticeIds.map(String) : [],
       order: Number(data.order ?? 0),
       pinned: Boolean(data.pinned),
+      showOnHome: Boolean(data.showOnHome),
       viewCount: Number(data.viewCount ?? 0),
       updatedAt: toMillis(data.updatedAt),
+    }
+  })
+
+export const loadContacts = () =>
+  load<Contact>('contacts', (snapshot) => {
+    const data = snapshot.data()
+    return {
+      id: String(data.id ?? snapshot.id),
+      team: String(data.team ?? ''),
+      topic: String(data.topic ?? ''),
+      ext: String(data.ext ?? ''),
+      phone: String(data.phone ?? ''),
+      group: String(data.group ?? '기타'),
+      categories: Array.isArray(data.categories) ? data.categories.map(String) as CategoryId[] : [],
+      priority: Number(data.priority ?? 2),
+      order: Number(data.order ?? 999),
     }
   })
 
@@ -196,13 +203,19 @@ export const removeDocument = async (name: string, id: string) => {
   await deleteDoc(doc(requireDb(), name, id))
 }
 
+// 체크리스트 저장(신규 생성·수정 겸용). setDoc+merge라 문서가 없으면 새로 만든다.
 export const saveChecklist = async (item: Checklist) => {
-  await updateDoc(doc(requireDb(), 'checklists', item.id), {
-    items: item.items,
-    order: item.order,
-    categoryId: item.categoryId,
-    updatedAt: serverTimestamp(),
-  })
+  await setDoc(
+    doc(requireDb(), 'checklists', item.id),
+    {
+      id: item.id,
+      items: item.items,
+      order: item.order,
+      categoryId: item.categoryId,
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
 }
 
 // ── 실시간 채팅 상담 ──
@@ -227,9 +240,15 @@ const mapConversation = (snapshot: QueryDocumentSnapshot<DocumentData>): Convers
 }
 
 // 대화 목록 실시간 구독(최근 메시지 순). 해제 함수를 반환한다.
+// needsHuman == true(상담사 연결 요청) 대화만 구독한다 — 보안 규칙과 일치시켜야 하며,
+// AI 상담 대화는 DB에서 읽어오지 않는다. (복합 인덱스: needsHuman ASC + lastMessageAt DESC)
 export const subscribeConversations = (onChange: (conversations: Conversation[]) => void) => {
   const database = requireDb()
-  const ref = query(collection(database, 'conversations'), orderBy('lastMessageAt', 'desc'))
+  const ref = query(
+    collection(database, 'conversations'),
+    where('needsHuman', '==', true),
+    orderBy('lastMessageAt', 'desc'),
+  )
   return onSnapshot(ref, (snapshot) => onChange(snapshot.docs.map(mapConversation)))
 }
 
@@ -240,9 +259,13 @@ export const subscribeConversationMessages = (
 ) => {
   const database = requireDb()
   const messagesRef = collection(doc(database, 'conversations', conversationId), 'messages')
-  return onSnapshot(query(messagesRef, orderBy('createdAt', 'asc')), (snapshot) => {
-    onChange(
-      snapshot.docs.map((docSnapshot): ChatMessage => {
+  // AI 자동응답(from == 'ai')은 상담사에게 노출하지 않는다 — 보안 규칙과 일치시킨 서버 측 필터.
+  // '!=' 쿼리는 from 기준으로 먼저 정렬되므로 클라이언트에서 시간순으로 다시 정렬한다.
+  // (복합 인덱스: from ASC + createdAt ASC)
+  const messagesQuery = query(messagesRef, where('from', '!=', 'ai'), orderBy('from'), orderBy('createdAt', 'asc'))
+  return onSnapshot(messagesQuery, (snapshot) => {
+    const messages = snapshot.docs
+      .map((docSnapshot): ChatMessage => {
         const data = docSnapshot.data()
         return {
           id: docSnapshot.id,
@@ -251,8 +274,9 @@ export const subscribeConversationMessages = (
           imageUrls: Array.isArray(data.imageUrls) ? data.imageUrls.map(String) : undefined,
           createdAt: toMillis(data.createdAt),
         }
-      }),
-    )
+      })
+      .sort((a, b) => a.createdAt - b.createdAt)
+    onChange(messages)
   })
 }
 
