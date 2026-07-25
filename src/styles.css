@@ -1,32 +1,55 @@
 :root {
-  /* 색상 — 따뜻한 테라코타·크림 브랜드 */
-  --bg: #faf5ef;
+  /* 색상 — 따뜻한 크림·앰버 브랜드 (docs/DESIGN.md §2) */
+  --bg: #fffdf9;
   --surface: #ffffff;
-  --surface-muted: #fbf6f0;
-  --text: #2b241e;
-  --muted: #857567;
-  --border: #ece2d6;
-  --border-strong: #ddccbb;
-  --primary: #b0491f;
-  --primary-hover: #8f3a17;
-  --accent: #e08a3c;
-  --accent-soft: #fbeede;
-  --danger: #b4341f;
-  --danger-soft: #fbe3de;
-  --ok: #2f7d4f;
-  --ok-soft: #e0f2e6;
+  --surface-muted: #fffaf1;
+  --text: #221d18;
+  --muted: #817b75;
+  --border: #eee9e3;
+  --border-strong: #e4dcd0;
+
+  --primary: #ec9f19;
+  --primary-hover: #d98b0b;
+  /* 앰버 면 위/크림 배경 위에서 쓰는 진한 앰버 글자색 (흰 글자 금지 §10) */
+  --primary-ink: #a76f08;
+  --accent: #ffb52e;
+  --accent-soft: #fff5df;
+  --accent-line: #ffe1a8;
+  --ink-on-amber: #2f1f02;
+
+  /* 상담사(사람) = 블루 */
+  --blue: #4aa7ec;
+  --blue-deep: #2f96e4;
+  --blue-soft: #e8f4ff;
+  --blue-line: #c9e4fa;
+  --ink-on-blue: #0b3a5d;
+
+  --danger: #c0442f;
+  --danger-soft: #fdeceb;
+  --danger-line: #f4c9c4;
+  --ok: #15803d;
+  --ok-soft: #dcfce7;
 
   /* 라운드 */
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
 
-  /* 그림자 */
-  --shadow-sm: 0 1px 2px rgba(87, 62, 38, 0.06);
-  --shadow-md: 0 12px 28px -14px rgba(87, 62, 38, 0.28);
+  /* 그림자 — 넓게 퍼지는 저채도 */
+  --shadow-sm: 0 12px 32px rgba(75, 59, 39, 0.055);
+  --shadow-md: 0 24px 56px rgba(237, 166, 50, 0.16);
+  --shadow-amber: 0 8px 18px rgba(242, 164, 29, 0.22);
+
+  /* 앰버 액션 면 */
+  --amber-face: linear-gradient(145deg, #ffc550, #ffad1f);
+  --amber-face-hover: linear-gradient(145deg, #ffbc35, #f19b0c);
 
   /* 모션 */
   --transition: 160ms ease;
+
+  /* 로고 전용 폰트 (§2.7) */
+  --font-logo: "Malgun Gothic", "맑은 고딕", "NanumSquareRound", sans-serif;
 
   color: var(--text);
   background: var(--bg);
@@ -45,12 +68,43 @@ body {
 }
 
 ::selection {
-  background: rgba(176, 73, 31, 0.18);
+  background: rgba(255, 181, 46, 0.35);
 }
 
 h1,
 h2 {
-  letter-spacing: -0.015em;
+  letter-spacing: -0.035em;
+}
+
+/* 숫자는 자리수 정렬 */
+time,
+.stats strong,
+.rankList strong,
+.statBarRow > span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 얇은 스크롤바 (내부 스크롤 영역 공통) */
+.sidebar,
+.chatList,
+.chatMessages {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.sidebar::-webkit-scrollbar,
+.chatList::-webkit-scrollbar,
+.chatMessages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.chatList::-webkit-scrollbar-thumb,
+.chatMessages::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 2px solid transparent;
+  border-radius: var(--radius-pill);
+  background-clip: content-box;
 }
 
 /* ---------- 폼 요소 기본값 ---------- */
@@ -58,34 +112,42 @@ button,
 input,
 select,
 textarea {
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font: inherit;
-  letter-spacing: 0;
+  letter-spacing: -0.005em;
 }
 
 button {
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
   color: var(--text);
   cursor: pointer;
   display: inline-flex;
-  font-weight: 600;
+  font-weight: 700;
   gap: 8px;
   justify-content: center;
-  min-height: 40px;
-  padding: 9px 15px;
+  min-height: 42px;
+  padding: 9px 18px;
   transition: background var(--transition), border-color var(--transition),
     color var(--transition), transform var(--transition), box-shadow var(--transition);
 }
 
 button:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 
 button:active {
   transform: translateY(1px);
+}
+
+button:disabled {
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.5;
+  transform: none;
 }
 
 input,
@@ -94,26 +156,26 @@ textarea {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   color: var(--text);
-  padding: 10px 12px;
+  padding: 11px 14px;
   transition: border-color var(--transition), box-shadow var(--transition);
   width: 100%;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #b3a596;
+  color: #b6ada2;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(176, 73, 31, 0.12);
+  box-shadow: 0 0 0 3px rgba(236, 159, 25, 0.18);
   outline: 0;
 }
 
 textarea {
-  line-height: 1.55;
+  line-height: 1.6;
   resize: vertical;
 }
 
@@ -123,30 +185,37 @@ textarea {
 }
 
 a {
-  color: var(--primary);
+  color: var(--primary-ink);
   font-weight: 700;
   text-decoration: none;
 }
 
+/* 앰버 액션 — 주요 버튼. 앰버 위에는 흰 글자 대신 진한 갈색 (§8.2) */
 .primary {
-  background: var(--primary);
-  border: 1px solid var(--primary);
-  color: #fff;
-  font-weight: 700;
+  background: var(--amber-face);
+  border: 1px solid #f5ab24;
+  box-shadow: var(--shadow-amber);
+  color: var(--ink-on-amber);
+  font-weight: 800;
 }
 
 .primary:hover {
-  background: var(--primary-hover);
-  border-color: var(--primary-hover);
-  color: #fff;
+  background: var(--amber-face-hover);
+  border-color: #eb9c0d;
+  color: var(--ink-on-amber);
+  transform: translateY(-1px);
+}
+
+.primary:active {
+  transform: translateY(0);
 }
 
 /* ---------- 로그인 ---------- */
 .login {
   align-items: center;
   background:
-    radial-gradient(120% 100% at 100% 0%, rgba(224, 138, 60, 0.14), transparent 45%),
-    radial-gradient(120% 100% at 0% 100%, rgba(176, 73, 31, 0.12), transparent 42%),
+    radial-gradient(120% 100% at 100% 0%, rgba(255, 181, 46, 0.2), transparent 46%),
+    radial-gradient(120% 100% at 0% 100%, rgba(255, 197, 80, 0.16), transparent 44%),
     var(--bg);
   display: flex;
   min-height: 100vh;
@@ -172,9 +241,9 @@ a {
 
 .loginBrand {
   background:
-    radial-gradient(90% 80% at 50% 12%, rgba(255, 255, 255, 0.18), transparent 60%),
-    linear-gradient(160deg, #b0491f 0%, #8f3a17 100%);
-  color: #fff;
+    radial-gradient(72% 52% at 50% 18%, rgba(255, 255, 255, 0.5), transparent 62%),
+    linear-gradient(165deg, #fff2d2 0%, #ffdf9f 100%);
+  color: #3a2a08;
   display: flex;
   flex: 1 1 46%;
   flex-direction: column;
@@ -184,19 +253,50 @@ a {
 }
 
 .loginMascot {
+  animation: mascotFloat 3.8s ease-in-out infinite;
   height: 132px;
   left: 42px;
   position: absolute;
   top: 38px;
   width: 132px;
-  filter: drop-shadow(0 10px 20px rgba(60, 30, 12, 0.28));
+  filter: drop-shadow(0 14px 26px rgba(200, 132, 22, 0.28));
+}
+
+/* 마스코트 주변 스파클 (§4) */
+.loginBrand > .loginSparkle {
+  color: #ffbd35;
+  font-size: 15px;
+  line-height: 1;
+  position: absolute;
+  text-shadow: 23px 23px 0 #ffc447;
+  user-select: none;
+}
+
+.loginBrand > .loginSparkle:nth-of-type(1) {
+  left: 156px;
+  top: 62px;
+}
+
+.loginBrand > .loginSparkle:nth-of-type(2) {
+  left: 26px;
+  top: 152px;
+}
+
+@keyframes mascotFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
 }
 
 .brandMark {
   align-items: center;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-md);
-  color: #fff;
+  color: var(--primary-ink);
   display: none;
   height: 52px;
   justify-content: center;
@@ -205,24 +305,29 @@ a {
   width: 52px;
 }
 
-.loginBrand > span {
-  color: #fbdcc4;
+.loginBrand > span:not(.loginSparkle) {
+  color: var(--primary-ink);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
 .loginBrand h1 {
+  font-family: var(--font-logo);
   font-size: 54px;
+  font-weight: 800;
+  letter-spacing: -0.045em;
   line-height: 1;
   margin: 12px 0;
+  -webkit-text-stroke: 0.18px;
 }
 
 .loginBrand p {
-  color: #f7e3d3;
+  color: #6b5326;
   line-height: 1.6;
   margin: 0;
   max-width: 310px;
+  word-break: keep-all;
 }
 
 .loginForm {
@@ -243,11 +348,11 @@ a {
 
 .loginFormHeader > svg {
   background: var(--accent-soft);
-  border-radius: var(--radius-sm);
-  color: var(--primary);
-  height: 44px;
-  padding: 10px;
-  width: 44px;
+  border-radius: var(--radius-pill);
+  color: var(--primary-ink);
+  height: 46px;
+  padding: 12px;
+  width: 46px;
 }
 
 .loginFormHeader h2,
@@ -257,6 +362,7 @@ a {
 
 .loginFormHeader h2 {
   font-size: 26px;
+  font-weight: 800;
 }
 
 .loginFormHeader p {
@@ -279,10 +385,10 @@ a {
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   display: flex;
-  gap: 8px;
-  padding: 0 12px;
+  gap: 10px;
+  padding: 0 18px;
   transition: border-color var(--transition), box-shadow var(--transition);
 }
 
@@ -292,8 +398,9 @@ a {
 }
 
 .passwordField input {
+  background: transparent;
   border: 0;
-  min-height: 48px;
+  min-height: 50px;
   padding-left: 0;
 }
 
@@ -304,12 +411,16 @@ a {
 
 .passwordField > div:focus-within {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(176, 73, 31, 0.12);
+  box-shadow: 0 0 0 3px rgba(236, 159, 25, 0.18);
 }
 
 .loginForm .primary {
-  font-weight: 800;
-  min-height: 48px;
+  min-height: 50px;
+}
+
+.loginForm small {
+  color: var(--muted);
+  word-break: keep-all;
 }
 
 .error {
@@ -319,17 +430,18 @@ a {
 /* ---------- 앱 셸 ---------- */
 .app {
   display: grid;
-  grid-template-columns: 244px 1fr;
+  grid-template-columns: 250px 1fr;
   min-height: 100vh;
 }
 
 .sidebar {
-  background: #2b241e;
-  color: #f3e9df;
+  background: rgba(255, 253, 250, 0.94);
+  border-right: 1px solid var(--border);
+  color: var(--text);
   display: flex;
   flex-direction: column;
   gap: 22px;
-  padding: 22px 16px;
+  padding: 22px 14px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -338,30 +450,54 @@ a {
 
 .sidebarBrand {
   align-items: center;
-  color: #fff;
+  color: var(--text);
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
-  padding: 6px 8px 14px;
+  padding: 6px 8px 16px;
 }
 
 .sidebarBrand .brandAvatar {
   align-items: center;
-  background: var(--accent-soft);
-  border-radius: 999px;
+  background: #fff3d8;
+  border-radius: var(--radius-pill);
   display: flex;
-  height: 40px;
+  flex: 0 0 auto;
+  height: 44px;
   justify-content: center;
   overflow: hidden;
-  width: 40px;
+  width: 44px;
 }
 
 .sidebarBrand .brandAvatar img {
   width: 150%;
-  transform: translateY(8%);
+  transform: translateY(6%);
 }
 
 .sidebar strong {
-  font-size: 20px;
+  font-family: var(--font-logo);
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  -webkit-text-stroke: 0.18px;
+}
+
+/* 로고 아래 서브텍스트 (§6.1) — 세로 사이드바에서는 줄바꿈해 한 줄로 둔다 */
+.brandSub {
+  color: var(--muted);
+  flex: 1 0 100%;
+  font-size: 13px;
+  font-weight: 600;
+  padding-left: 2px;
+}
+
+@media (max-width: 860px) {
+  /* 가로 배치에서는 1px 디바이더로 로고와 구분 */
+  .brandSub {
+    border-left: 1px solid #ded8d1;
+    flex: 0 0 auto;
+    padding-left: 10px;
+  }
 }
 
 .sidebar nav {
@@ -375,28 +511,29 @@ a {
   background: transparent;
   border: 0;
   border-radius: var(--radius-md);
-  color: #d8c8b8;
+  box-shadow: none;
+  color: #6f665d;
   cursor: pointer;
   display: flex;
   font-weight: 600;
   gap: 12px;
   justify-content: flex-start;
-  min-height: 42px;
-  padding: 10px 12px;
-  transition: background var(--transition), color var(--transition);
+  min-height: 44px;
+  padding: 10px 14px;
+  transition: background var(--transition), color var(--transition), box-shadow var(--transition);
 }
 
 .sidebar a svg,
 .sidebar > button svg {
-  color: #a99884;
+  color: #b3a99c;
   flex: 0 0 auto;
   transition: color var(--transition);
 }
 
 .sidebar a:hover,
 .sidebar > button:hover {
-  background: rgba(255, 255, 255, 0.07);
-  color: #fff;
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .sidebar a:hover svg,
@@ -404,21 +541,26 @@ a {
   color: var(--accent);
 }
 
+/* 현재 페이지 — soft 배경 + 왼쪽 3px 액센트 바 + 강조 글자 (§8.1) */
 .sidebar a.active {
-  background: var(--primary);
-  color: #fff;
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--primary-ink);
+  font-weight: 800;
 }
 
 .sidebar a.active svg {
-  color: #fff;
+  color: var(--primary);
 }
 
 .sidebar > button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
   margin-top: auto;
 }
 
 .content {
-  padding: 32px clamp(20px, 3vw, 40px);
+  padding: 32px clamp(20px, 3vw, 44px) 56px;
 }
 
 /* ---------- 페이지 헤더 ---------- */
@@ -432,26 +574,37 @@ a {
 
 .pageHeader h1 {
   font-size: 28px;
+  font-weight: 800;
   margin: 4px 0 0;
 }
 
 .pageHeader > div > span {
-  color: var(--primary);
+  color: var(--primary-ink);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
+/* 헤더 안의 링크형 액션도 앰버 액션과 같은 모양으로 */
+.pageHeader a.primary {
+  align-items: center;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  min-height: 42px;
+  padding: 9px 20px;
+}
+
 /* ---------- 알림 배너 ---------- */
 .notice {
   background: var(--danger-soft);
-  border: 1px solid #f0c4bb;
+  border: 1px solid var(--danger-line);
   border-radius: var(--radius-md);
   color: var(--danger);
   font-weight: 700;
   margin-bottom: 16px;
-  padding: 12px 14px;
+  padding: 13px 16px;
+  word-break: keep-all;
 }
 
 /* ---------- 통계 카드 ---------- */
@@ -469,13 +622,20 @@ a {
   box-shadow: var(--shadow-sm);
   display: grid;
   gap: 4px;
-  padding: 20px;
+  padding: 22px;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
+}
+
+.stats article:hover {
+  border-color: var(--accent-line);
+  box-shadow: 0 22px 40px rgba(75, 59, 39, 0.11);
+  transform: translateY(-2px);
 }
 
 .stats strong {
   font-size: 32px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.04em;
 }
 
 .stats span {
@@ -493,11 +653,12 @@ a {
   display: grid;
   gap: 14px;
   margin-bottom: 20px;
-  padding: clamp(18px, 3vw, 24px);
+  padding: clamp(18px, 3vw, 26px);
 }
 
 .panel h2 {
   font-size: 17px;
+  font-weight: 800;
   margin: 0;
 }
 
@@ -526,22 +687,22 @@ a {
 }
 
 .statBar {
-  background: var(--surface-muted);
+  background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   height: 12px;
   overflow: hidden;
 }
 
 .statBarFill {
-  background: linear-gradient(90deg, var(--accent), var(--primary));
-  border-radius: 999px;
+  background: linear-gradient(90deg, #ffc550, #f2a41d);
+  border-radius: var(--radius-pill);
   height: 100%;
   min-width: 4px;
   transition: width var(--transition);
 }
 
-/* ---------- 순위 리스트 ---------- */
+/* ---------- 순위 리스트 (구분선 + hover 하이라이트) ---------- */
 .rankList {
   counter-reset: rank;
   display: grid;
@@ -554,26 +715,38 @@ a {
 .rankList li {
   align-items: center;
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  padding: 11px 0;
+  padding: 11px 10px;
+  transition: background var(--transition), color var(--transition);
 }
 
 .rankList li::before {
   align-items: center;
   background: var(--accent-soft);
-  border-radius: 999px;
-  color: var(--primary);
+  border-radius: var(--radius-pill);
+  color: var(--primary-ink);
   content: counter(rank);
   counter-increment: rank;
   display: flex;
   flex: 0 0 auto;
   font-size: 12px;
   font-weight: 800;
-  height: 22px;
+  height: 23px;
   justify-content: center;
-  width: 22px;
+  transition: background var(--transition), color var(--transition);
+  width: 23px;
+}
+
+.rankList li:hover {
+  background: var(--accent-soft);
+}
+
+.rankList li:hover::before {
+  background: var(--accent);
+  color: var(--ink-on-amber);
 }
 
 .rankList li:last-child {
@@ -588,12 +761,11 @@ a {
 }
 
 .rankList li strong {
-  color: var(--primary);
+  color: var(--primary-ink);
   flex: 0 0 auto;
 }
 
-/* ---------- 탭 / 버튼 행 ---------- */
-.tabs,
+/* ---------- 세그먼트 탭 / 버튼 행 ---------- */
 .buttonGrid,
 .formRow {
   display: flex;
@@ -602,21 +774,48 @@ a {
   margin-bottom: 4px;
 }
 
+/* 세그먼트 탭 (§6.2) — 크림 컨테이너 안 알약 아이템 */
+.tabs {
+  align-items: center;
+  background: #fffaf0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px;
+}
+
 .tabs button {
-  border-radius: 999px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 14px;
   min-height: 36px;
   padding: 7px 15px;
 }
 
-.tabs .active,
-.buttonGrid .selected {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #fff;
+.tabs button:hover {
+  background: var(--surface);
+  border-color: transparent;
+  color: var(--primary-ink);
 }
 
-.tabs .active:hover {
-  color: #fff;
+.tabs .active,
+.buttonGrid .selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-on-amber);
+  font-weight: 800;
+}
+
+.tabs .active:hover,
+.buttonGrid .selected:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-on-amber);
 }
 
 .buttonGrid {
@@ -625,6 +824,7 @@ a {
 }
 
 .buttonGrid button {
+  border-radius: var(--radius-md);
   min-height: 64px;
 }
 
@@ -633,7 +833,7 @@ table {
   background: var(--surface);
   border: 1px solid var(--border);
   border-collapse: separate;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   border-spacing: 0;
   overflow: hidden;
   width: 100%;
@@ -642,7 +842,7 @@ table {
 th,
 td {
   border-bottom: 1px solid var(--border);
-  padding: 12px 14px;
+  padding: 13px 16px;
   text-align: left;
 }
 
@@ -657,6 +857,7 @@ th {
 
 td {
   color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 tbody tr:last-child td {
@@ -669,15 +870,15 @@ tbody tr:hover td {
 
 /* ---------- 상태 배지 ---------- */
 mark {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 13px;
   font-weight: 800;
-  padding: 4px 11px;
+  padding: 4px 12px;
 }
 
 mark.pending {
-  background: var(--danger-soft);
-  color: var(--danger);
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
 mark.answered {
@@ -700,7 +901,7 @@ fieldset {
   display: grid;
   gap: 10px;
   margin: 0;
-  padding: 16px;
+  padding: 18px;
 }
 
 legend {
@@ -717,6 +918,7 @@ legend {
   display: flex;
   font-size: 14px;
   gap: 8px;
+  word-break: keep-all;
 }
 
 .check input {
@@ -730,6 +932,7 @@ legend {
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
+  word-break: keep-all;
 }
 
 .editorHint strong {
@@ -756,21 +959,22 @@ legend {
 }
 
 .imageThumb button {
-  background: var(--danger);
-  border: 0;
-  border-radius: 999px;
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
+  border-radius: var(--radius-pill);
   box-shadow: var(--shadow-sm);
-  color: #fff;
+  color: var(--danger);
   min-height: 0;
-  padding: 5px;
+  padding: 6px;
   position: absolute;
   right: -6px;
   top: -6px;
 }
 
 .imageThumb button:hover {
-  background: #931f10;
-  color: #fff;
+  background: #f9dcd8;
+  border-color: var(--danger);
+  color: var(--danger);
 }
 
 /* ---------- 편집 리스트 (구분선 + hover) ---------- */
@@ -784,10 +988,11 @@ legend {
 .list > div {
   align-items: center;
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   display: flex;
   gap: 8px;
   justify-content: space-between;
-  padding: 4px 8px 4px 10px;
+  padding: 4px 10px;
   transition: background var(--transition);
 }
 
@@ -799,11 +1004,20 @@ legend {
   padding: 8px 0;
 }
 
+.list > div > small {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .listSelect {
   background: transparent;
   border: 0;
+  border-radius: 0;
+  box-shadow: none;
   color: var(--text);
   flex: 1;
+  font-weight: 600;
   justify-content: flex-start;
   min-height: 0;
   padding: 8px 0;
@@ -813,14 +1027,14 @@ legend {
 .listSelect:hover {
   background: transparent;
   border: 0;
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 
 .list > div > button[aria-label="삭제"] {
   border-color: transparent;
   color: var(--muted);
   min-height: 34px;
-  padding: 6px 8px;
+  padding: 6px 10px;
 }
 
 .list > div:hover > button[aria-label="삭제"] {
@@ -829,15 +1043,15 @@ legend {
 
 .list > div > button[aria-label="삭제"]:hover {
   background: var(--danger-soft);
-  border-color: #f0c4bb;
+  border-color: var(--danger-line);
   color: var(--danger);
 }
 
+/* 편집 중 — soft 배경 + 왼쪽 액센트 바 */
 .list > div.editing {
   background: var(--accent-soft);
-  border-left: 3px solid var(--primary);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  padding-left: 12px;
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 14px;
 }
 
 .loading {
@@ -849,11 +1063,11 @@ legend {
   justify-content: center;
 }
 
-/* ---------- 채팅 상담 ---------- */
+/* ---------- 채팅 상담 (상담사 = 블루) ---------- */
 .chatConsole {
   display: grid;
   grid-template-columns: 300px 1fr;
-  gap: 16px;
+  gap: 18px;
   height: calc(100vh - 200px);
   min-height: 440px;
 }
@@ -870,35 +1084,46 @@ legend {
   align-items: flex-start;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 18px;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
+  font-weight: 600;
   gap: 5px;
-  padding: 12px 14px;
+  padding: 13px 16px;
   text-align: left;
   width: 100%;
 }
 
 .chatList button:hover {
-  border-color: var(--border-strong);
+  background: var(--blue-soft);
+  border-color: var(--blue-line);
   color: var(--text);
 }
 
+/* 선택된 대화 — 왼쪽 3px 블루 바 + soft 배경 (§8.1) */
 .chatList button.selected {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
+  background: var(--blue-soft);
+  border-color: var(--blue-line);
+  box-shadow: inset 3px 0 0 var(--blue);
 }
 
 .chatList button strong {
   color: var(--text);
   font-size: 14px;
   font-weight: 700;
+  letter-spacing: -0.02em;
+  word-break: keep-all;
+}
+
+.chatList button.selected strong {
+  color: #1f7ec4;
 }
 
 .chatList button span {
   color: var(--muted);
   font-size: 12px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -926,48 +1151,49 @@ legend {
 }
 
 .chatThread {
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  background: var(--surface);
   overflow: hidden;
 }
 
 .chatMessages {
   background:
-    radial-gradient(80% 60% at 100% 0%, rgba(224, 138, 60, 0.06), transparent 55%),
+    radial-gradient(80% 60% at 100% 0%, rgba(255, 181, 46, 0.09), transparent 55%),
     var(--surface);
   display: flex;
   flex-direction: column;
   gap: 12px;
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 22px;
 }
 
 .chatMessages .bubble {
-  max-width: 74%;
-  border-radius: var(--radius-md);
-  padding: 9px 13px;
+  max-width: min(74%, 640px);
+  border-radius: 20px 20px 20px 6px;
+  padding: 11px 16px;
 }
 
 .chatMessages .bubble .who {
   display: block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   margin-bottom: 3px;
-  text-transform: uppercase;
 }
 
 .chatMessages .bubble p {
+  line-height: 1.7;
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
+/* 학생 — 왼쪽 크림 말풍선 */
 .chatMessages .bubble.student {
   align-self: flex-start;
   background: var(--surface-muted);
@@ -978,45 +1204,53 @@ legend {
   color: var(--muted);
 }
 
+/* 관리자(상담사) — 오른쪽 블루 말풍선, 진한 남색 글자 */
 .chatMessages .bubble.admin {
   align-self: flex-end;
-  background: var(--primary);
-  color: #fff;
+  background: linear-gradient(145deg, #a4d6f9, #6fbaf0);
+  border: 1px solid #63b2ea;
+  border-radius: 20px 20px 6px 20px;
+  color: var(--ink-on-blue);
 }
 
 .chatMessages .bubble.admin .who {
-  color: #f6cdb4;
+  color: #0f4d78;
 }
 
+/* AI·자동응답 — 앰버 말풍선 (§8.2) */
 .chatMessages .bubble.bot,
 .chatMessages .bubble.ai {
   align-self: flex-start;
-  background: var(--accent-soft);
-  border: 1px solid #f3d9bd;
+  background: #fff9ef;
+  border: 1px solid #f1e5d3;
 }
 
 .chatMessages .bubble.bot .who,
 .chatMessages .bubble.ai .who {
-  color: var(--primary);
+  color: var(--primary-ink);
 }
 
+/* 컴포저 — 알약 입력 + 앰버 전송 */
 .chatReply {
   align-items: center;
   background: var(--surface);
   border-top: 1px solid var(--border);
   display: flex;
   gap: 10px;
-  padding: 14px;
+  padding: 16px;
 }
 
 .chatReply input {
+  border-radius: var(--radius-pill);
   flex: 1;
-  min-height: 44px;
+  min-height: 48px;
+  padding: 12px 20px;
 }
 
 .chatReply .primary {
   flex: 0 0 auto;
-  min-height: 44px;
+  min-height: 48px;
+  padding: 9px 22px;
 }
 
 .chatEmpty {
@@ -1029,16 +1263,18 @@ legend {
   padding: 24px;
   margin: 0;
   text-align: center;
+  word-break: keep-all;
 }
 
 /* ---------- 상단 동기화 바 ---------- */
 .syncBar {
-  background: var(--primary);
-  color: #fff;
+  background: var(--amber-face);
+  box-shadow: var(--shadow-amber);
+  color: var(--ink-on-amber);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   left: 50%;
-  padding: 5px 16px;
+  padding: 6px 18px;
   position: fixed;
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   top: 0;
@@ -1060,8 +1296,7 @@ legend {
 .toast {
   animation: toastIn 0.18s ease-out;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
-  color: #fff;
+  box-shadow: 0 18px 42px rgba(75, 59, 39, 0.18);
   font-size: 14px;
   font-weight: 700;
   min-width: 220px;
@@ -1069,11 +1304,15 @@ legend {
 }
 
 .toast.success {
-  background: var(--ok);
+  background: var(--ok-soft);
+  border: 1px solid #bbe7c8;
+  color: var(--ok);
 }
 
 .toast.error {
-  background: var(--danger);
+  background: var(--danger-soft);
+  border: 1px solid var(--danger-line);
+  color: var(--danger);
 }
 
 @keyframes toastIn {
@@ -1094,6 +1333,8 @@ legend {
   }
 
   .sidebar {
+    border-bottom: 1px solid var(--border);
+    border-right: 0;
     flex-direction: row;
     flex-wrap: wrap;
     gap: 10px;
@@ -1101,10 +1342,18 @@ legend {
     position: static;
   }
 
+  .sidebarBrand {
+    padding-bottom: 6px;
+  }
+
   .sidebar nav {
     grid-auto-flow: column;
     grid-template-columns: none;
     overflow-x: auto;
+  }
+
+  .sidebar a.active {
+    box-shadow: inset 0 -3px 0 var(--accent);
   }
 
   .sidebar > button {
@@ -1138,11 +1387,41 @@ legend {
 
   .loginMascot {
     height: 96px;
+    left: auto;
     position: static;
+    top: auto;
     width: 96px;
+  }
+
+  .loginSparkle {
+    display: none;
   }
 
   .loginBrand h1 {
     font-size: 42px;
+  }
+}
+
+/* iOS 자동 확대 방지 (§9) */
+@media (max-width: 720px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loginMascot {
+    animation: none;
+  }
+
+  .toast {
+    animation: none;
+  }
+
+  .stats article:hover,
+  .primary:hover {
+    transform: none;
   }
 }

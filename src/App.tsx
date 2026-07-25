@@ -183,6 +183,8 @@ function LoginPage() {
       <section className="loginPanel" aria-label="문무니 관리자 로그인">
         <div className="loginBrand">
           <img className="loginMascot" src={mascotUrl} alt="문무니 마스코트" />
+          <span className="loginSparkle" aria-hidden="true">✦</span>
+          <span className="loginSparkle" aria-hidden="true">✦</span>
           <span>관리자 콘솔</span>
           <h1>문무니</h1>
           <p>학생 문의와 안내 데이터를 관리하는 전용 데스크톱 앱입니다.</p>
@@ -238,6 +240,7 @@ function Shell({
         <div className="sidebarBrand">
           <span className="brandAvatar"><img src={mascotUrl} alt="" /></span>
           <strong>문무니</strong>
+          <span className="brandSub">관리자 콘솔</span>
         </div>
         <nav>
           <NavLink to="/" end><BarChart3 size={18} />통계</NavLink>
