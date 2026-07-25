@@ -17,7 +17,12 @@ export type Inquiry = {
   categoryId: CategoryId
   keyword: string
   detail: string
+  topic?: string
+  topicKey?: string
+  classifiedAt?: number
+  classifiedBy?: 'ai' | 'manual'
   status: 'pending' | 'answered'
+  answeredBy?: 'ai' | 'admin'
   createdAt: number
   answeredAt?: number
 }
@@ -102,10 +107,14 @@ export type InquiryGroup = {
   key: string
   categoryId: CategoryId
   keyword: string
+  topic?: string
+  topicKey?: string
   total: number
   chat: number
   phone: number
   pending: number
+  aiAnswered: number
+  adminAnswered: number
   status: 'pending' | 'answered'
   inquiryIds: string[]
 }

@@ -12,6 +12,7 @@ import {
   Timestamp,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryDocumentSnapshot,
 } from 'firebase/firestore'
@@ -40,6 +41,20 @@ const toMillis = (value: unknown) => {
 const requireDb = () => {
   if (!db) throw new Error('Firebase 환경변수가 설정되지 않았습니다.')
   return db
+}
+
+const normalizeTopicKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .replace(/[^\p{L}\p{N}]+/gu, '_')
+    .replace(/^_+|_+$/g, '')
+
+const readAnsweredBy = (data: DocumentData): Inquiry['answeredBy'] => {
+  if (data.answeredBy === 'ai' || data.answerStatus === 'ai' || data.aiAnswered === true) return 'ai'
+  if (data.answeredBy === 'admin' || data.answeredBy === 'human' || data.status === 'answered') return 'admin'
+  return undefined
 }
 
 const load = async <T>(
@@ -130,13 +145,19 @@ export const loadInquiries = async () => {
   const snapshots = await getDocs(query(collection(database, 'inquiries'), orderBy('createdAt', 'desc')))
   return snapshots.docs.map((snapshot): Inquiry => {
     const data = snapshot.data()
+    const answeredBy = readAnsweredBy(data)
     return {
       id: snapshot.id,
       source: data.source === 'phone' ? 'phone' : 'chat',
       categoryId: String(data.categoryId ?? 'etc') as CategoryId,
       keyword: String(data.keyword ?? ''),
       detail: String(data.detail ?? ''),
-      status: data.status === 'answered' ? 'answered' : 'pending',
+      topic: data.topic ? String(data.topic) : undefined,
+      topicKey: data.topicKey ? String(data.topicKey) : undefined,
+      classifiedAt: data.classifiedAt ? toMillis(data.classifiedAt) : undefined,
+      classifiedBy: data.classifiedBy === 'manual' ? 'manual' : data.classifiedBy === 'ai' ? 'ai' : undefined,
+      status: data.status === 'answered' || answeredBy ? 'answered' : 'pending',
+      answeredBy,
       createdAt: toMillis(data.createdAt),
       answeredAt: data.answeredAt ? toMillis(data.answeredAt) : undefined,
     }
@@ -148,21 +169,31 @@ export const groupInquiries = (inquiries: Inquiry[], categoryId: CategoryId | 'a
   inquiries
     .filter((item) => categoryId === 'all' || item.categoryId === categoryId)
     .forEach((item) => {
-      const key = `${item.categoryId}:${item.keyword}`
+      const topic = item.topic?.trim()
+      const topicKey = item.topicKey?.trim()
+      const label = topic || item.keyword
+      const normalizedKey = topicKey || normalizeTopicKey(item.keyword) || item.id
+      const key = `${item.categoryId}:${normalizedKey}`
       const group = groups.get(key) ?? {
         key,
         categoryId: item.categoryId,
-        keyword: item.keyword,
+        keyword: label,
+        topic,
+        topicKey,
         total: 0,
         chat: 0,
         phone: 0,
         pending: 0,
+        aiAnswered: 0,
+        adminAnswered: 0,
         status: 'answered' as const,
         inquiryIds: [],
       }
       group.total += 1
       group[item.source] += 1
-      if (item.status === 'pending') group.pending += 1
+      if (item.answeredBy === 'ai') group.aiAnswered += 1
+      else if (item.status === 'answered') group.adminAnswered += 1
+      else group.pending += 1
       group.status = group.pending > 0 ? 'pending' : 'answered'
       group.inquiryIds.push(item.id)
       groups.set(key, group)
@@ -182,6 +213,31 @@ export const createPhoneInquiry = async (categoryId: CategoryId, keyword: string
     status: 'pending',
     createdAt: serverTimestamp(),
   })
+
+export const updateInquiryTopics = async (
+  results: Array<{
+    id: string
+    categoryId?: CategoryId
+    topic: string
+    topicKey: string
+  }>,
+) => {
+  const database = requireDb()
+  const batch = writeBatch(database)
+
+  results.forEach((item) => {
+    const payload: Record<string, unknown> = {
+      topic: item.topic,
+      topicKey: item.topicKey,
+      classifiedAt: serverTimestamp(),
+      classifiedBy: 'ai',
+    }
+    if (item.categoryId) payload.categoryId = item.categoryId
+    batch.update(doc(database, 'inquiries', item.id), payload)
+  })
+
+  await batch.commit()
+}
 
 export const uploadAnswerImages = async (faqId: string, files: File[]) => {
   if (!storage || files.length === 0) return []
@@ -296,6 +352,15 @@ export const sendAdminMessage = async (conversationId: string, text: string) => 
     unreadForAdmin: false,
     unreadForStudent: true,
   })
+  await setDoc(
+    doc(database, 'inquiries', conversationId),
+    {
+      status: 'answered',
+      answeredBy: 'admin',
+      answeredAt: serverTimestamp(),
+    },
+    { merge: true },
+  )
 }
 
 // 관리자가 대화를 열어볼 때 미확인 표시 해제.
