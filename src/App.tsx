@@ -1,6 +1,6 @@
 import { BarChart3, BookUser, Edit3, FileQuestion, ListChecks, LockKeyhole, LogOut, MessageSquare, Newspaper, PhoneCall, Save, Send, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
+import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import {
   createPhoneInquiry,
   groupInquiries,
@@ -21,6 +21,7 @@ import {
 } from './data'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { ADMIN_LOGIN_EMAIL, auth, hasFirebaseConfig } from './firebase'
+import mascotUrl from './assets/munmuni-mascot.png'
 import type { Category, CategoryId, ChatMessage, Checklist, Contact, Conversation, FaqEntry, Inquiry, Notice } from './types'
 
 type Store = {
@@ -97,16 +98,6 @@ function ToastHost() {
         <div key={toast.id} className={`toast ${toast.kind}`}>{toast.text}</div>
       ))}
     </div>
-  )
-}
-
-// 두 겹의 둥근 사각형이 겹친 문무니 로고 마크. currentColor를 따라 색이 바뀐다.
-function Logo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="41" y="13" width="46" height="46" rx="15" stroke="currentColor" strokeWidth="13" />
-      <rect x="13" y="41" width="46" height="46" rx="15" stroke="currentColor" strokeWidth="13" />
-    </svg>
   )
 }
 
@@ -191,7 +182,7 @@ function LoginPage() {
     <main className="login">
       <section className="loginPanel" aria-label="문무니 관리자 로그인">
         <div className="loginBrand">
-          <div className="brandMark"><Logo /></div>
+          <img className="loginMascot" src={mascotUrl} alt="문무니 마스코트" />
           <span>관리자 콘솔</span>
           <h1>문무니</h1>
           <p>학생 문의와 안내 데이터를 관리하는 전용 데스크톱 앱입니다.</p>
@@ -244,16 +235,19 @@ function Shell({
       {syncing && <div className="syncBar">동기화 중…</div>}
       <ToastHost />
       <aside className="sidebar">
-        <div className="sidebarBrand"><Logo /><strong>문무니</strong></div>
+        <div className="sidebarBrand">
+          <span className="brandAvatar"><img src={mascotUrl} alt="" /></span>
+          <strong>문무니</strong>
+        </div>
         <nav>
-          <Link to="/"><BarChart3 size={18} />통계</Link>
-          <Link to="/chat"><MessageSquare size={18} />채팅 상담</Link>
-          <Link to="/log-call"><PhoneCall size={18} />전화 기록</Link>
-          <Link to="/edit/categories"><Edit3 size={18} />카테고리</Link>
-          <Link to="/edit/faqs"><FileQuestion size={18} />FAQ</Link>
-          <Link to="/edit/notices"><Newspaper size={18} />원문 공지</Link>
-          <Link to="/edit/checklists"><ListChecks size={18} />체크리스트</Link>
-          <Link to="/edit/contacts"><BookUser size={18} />전화번호부</Link>
+          <NavLink to="/" end><BarChart3 size={18} />통계</NavLink>
+          <NavLink to="/chat"><MessageSquare size={18} />채팅 상담</NavLink>
+          <NavLink to="/log-call"><PhoneCall size={18} />전화 기록</NavLink>
+          <NavLink to="/edit/categories"><Edit3 size={18} />카테고리</NavLink>
+          <NavLink to="/edit/faqs"><FileQuestion size={18} />FAQ</NavLink>
+          <NavLink to="/edit/notices"><Newspaper size={18} />원문 공지</NavLink>
+          <NavLink to="/edit/checklists"><ListChecks size={18} />체크리스트</NavLink>
+          <NavLink to="/edit/contacts"><BookUser size={18} />전화번호부</NavLink>
         </nav>
         <button type="button" onClick={onLogout}>
           <LogOut size={18} />로그아웃
