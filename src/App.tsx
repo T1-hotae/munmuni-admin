@@ -1,4 +1,4 @@
-import { BarChart3, BookUser, Edit3, FileQuestion, ListChecks, LockKeyhole, LogOut, MessageSquare, Newspaper, PhoneCall, Save, Send, ShieldCheck, Trash2 } from 'lucide-react'
+import { BarChart3, BookUser, Edit3, FileQuestion, ListChecks, LockKeyhole, LogOut, MessageSquare, Newspaper, PhoneCall, RefreshCw, Save, Send, ShieldCheck, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import {
@@ -17,10 +17,12 @@ import {
   sendAdminMessage,
   subscribeConversationMessages,
   subscribeConversations,
+  updateInquiryTopics,
   uploadAnswerImages,
 } from './data'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth'
 import { ADMIN_LOGIN_EMAIL, auth, hasFirebaseConfig } from './firebase'
+import { classifyInquiryTopics, hasAiApiBase, type InquiryTopicCandidate } from './ai'
 import mascotUrl from './assets/munmuni-mascot.png'
 import type { Category, CategoryId, ChatMessage, Checklist, Contact, Conversation, FaqEntry, Inquiry, Notice } from './types'
 
@@ -225,13 +227,23 @@ function Shell({
   children,
   loadError,
   syncing,
+  onRefresh,
   onLogout,
 }: {
   children: React.ReactNode
   loadError: string
   syncing: boolean
+  onRefresh: () => Promise<void>
   onLogout: () => void
 }) {
+  const handleRefresh = async () => {
+    try {
+      await onRefresh()
+    } catch {
+      notify('새로고침에 실패했습니다.', 'error')
+    }
+  }
+
   return (
     <div className="app">
       {syncing && <div className="syncBar">동기화 중…</div>}
@@ -252,9 +264,14 @@ function Shell({
           <NavLink to="/edit/checklists"><ListChecks size={18} />체크리스트</NavLink>
           <NavLink to="/edit/contacts"><BookUser size={18} />전화번호부</NavLink>
         </nav>
-        <button type="button" onClick={onLogout}>
-          <LogOut size={18} />로그아웃
-        </button>
+        <div className="sidebarActions">
+          <button type="button" onClick={() => void handleRefresh()} disabled={syncing}>
+            <RefreshCw size={18} />{syncing ? '새로고침 중' : '새로고침'}
+          </button>
+          <button type="button" onClick={onLogout}>
+            <LogOut size={18} />로그아웃
+          </button>
+        </div>
       </aside>
       <main className="content">
         {loadError && <div className="notice">{loadError}</div>}
@@ -269,10 +286,14 @@ function Shell({
   )
 }
 
-function Stats({ store }: { store: Store }) {
+function Stats({ store, refresh }: { store: Store; refresh: () => Promise<void> }) {
+  const [classifying, setClassifying] = useState(false)
   const totalInquiries = store.inquiries.length
   const chatCount = store.inquiries.filter((item) => item.source === 'chat').length
   const phoneCount = store.inquiries.filter((item) => item.source === 'phone').length
+  const aiAnsweredCount = store.inquiries.filter((item) => item.answeredBy === 'ai').length
+  const adminAnsweredCount = store.inquiries.filter((item) => item.status === 'answered' && item.answeredBy !== 'ai').length
+  const pendingCount = store.inquiries.filter((item) => item.status === 'pending' && item.answeredBy !== 'ai').length
   const topKeywords = useMemo(() => groupInquiries(store.inquiries, 'all').slice(0, 8), [store.inquiries])
   const topFaqs = useMemo(() => [...store.faqs].sort((a, b) => b.viewCount - a.viewCount).slice(0, 5), [store.faqs])
   const topNotices = useMemo(
@@ -283,6 +304,55 @@ function Stats({ store }: { store: Store }) {
     const count = store.inquiries.filter((item) => item.categoryId === category.id).length
     return { category, count, percent: totalInquiries ? Math.round((count / totalInquiries) * 100) : 0 }
   })
+  const unclassifiedInquiries = useMemo(
+    () => store.inquiries.filter((item) => !item.topicKey?.trim()).slice(0, 50),
+    [store.inquiries],
+  )
+  const existingTopics = useMemo(() => {
+    const topics = new Map<string, InquiryTopicCandidate>()
+    store.inquiries.forEach((item) => {
+      if (!item.topic?.trim() || !item.topicKey?.trim()) return
+      const key = `${item.categoryId}:${item.topicKey}`
+      if (!topics.has(key)) {
+        topics.set(key, {
+          topic: item.topic,
+          topicKey: item.topicKey,
+          categoryId: item.categoryId,
+        })
+      }
+    })
+    return [...topics.values()].slice(0, 200)
+  }, [store.inquiries])
+  const categoryLabel = (id: CategoryId) => store.categories.find((category) => category.id === id)?.label ?? id
+
+  const classifyTopics = async () => {
+    if (unclassifiedInquiries.length === 0) return
+    if (!hasAiApiBase) {
+      notify('VITE_AI_API_BASE를 설정한 뒤 문의 분류를 실행할 수 있습니다.', 'error')
+      return
+    }
+
+    setClassifying(true)
+    try {
+      const results = await classifyInquiryTopics({
+        categories: store.categories,
+        existingTopics,
+        inquiries: unclassifiedInquiries,
+      })
+      const validResults = results.filter((item) => item.id && item.topic?.trim() && item.topicKey?.trim())
+      if (validResults.length === 0) {
+        notify('저장할 분류 결과가 없습니다.', 'error')
+        return
+      }
+      await updateInquiryTopics(validResults)
+      notify(`문의 ${validResults.length}건을 주제별로 분류했습니다.`)
+      await refresh()
+    } catch (error) {
+      notify(error instanceof Error ? error.message : '문의 분류에 실패했습니다.', 'error')
+    } finally {
+      setClassifying(false)
+    }
+  }
 
   return (
     <>
@@ -291,12 +361,26 @@ function Stats({ store }: { store: Store }) {
           <span>통계</span>
           <h1>운영 통계</h1>
         </div>
-        <Link className="primary" to="/log-call">전화 문의 기록</Link>
+        <div className="headerActions">
+          <button
+            type="button"
+            disabled={classifying || unclassifiedInquiries.length === 0}
+            onClick={() => void classifyTopics()}
+            title={hasAiApiBase ? undefined : 'VITE_AI_API_BASE 설정이 필요합니다.'}
+          >
+            <Sparkles size={18} />
+            {classifying ? '분류 중…' : `미분류 ${unclassifiedInquiries.length}건 분류`}
+          </button>
+          <Link className="primary" to="/log-call">전화 문의 기록</Link>
+        </div>
       </header>
       <section className="stats">
         <article><strong>{totalInquiries}</strong><span>전체 문의</span></article>
         <article><strong>{chatCount}</strong><span>채팅 문의</span></article>
         <article><strong>{phoneCount}</strong><span>전화 문의</span></article>
+        <article><strong>{aiAnsweredCount}</strong><span>AI 답변</span></article>
+        <article><strong>{adminAnsweredCount}</strong><span>상담사 답변</span></article>
+        <article><strong>{pendingCount}</strong><span>미답변</span></article>
         <article><strong>{store.faqs.length}</strong><span>게시 FAQ</span></article>
         <article><strong>{store.notices.length}</strong><span>등록 공지</span></article>
       </section>
@@ -313,19 +397,33 @@ function Stats({ store }: { store: Store }) {
       </div>
 
       <div className="panel">
-        <h2>많이 묻는 키워드</h2>
+        <div className="panelHeader">
+          <div>
+            <h2>많이 묻는 주제</h2>
+            <p className="editorHint">
+              AI 분류가 끝난 문의는 주제 기준으로 묶고, 아직 분류 전인 문의는 기존 키워드 기준으로 집계합니다.
+            </p>
+          </div>
+          <mark className={unclassifiedInquiries.length > 0 ? 'pending' : 'answered'}>
+            미분류 {unclassifiedInquiries.length}건
+          </mark>
+        </div>
         {topKeywords.length === 0 ? (
           <p className="editorHint">아직 집계된 문의가 없습니다.</p>
         ) : (
           <table>
-            <thead><tr><th>키워드</th><th>전체</th><th>채팅</th><th>전화</th></tr></thead>
+            <thead><tr><th>주제</th><th>카테고리</th><th>전체</th><th>채팅</th><th>전화</th><th>AI 답변</th><th>상담사 답변</th><th>미답변</th></tr></thead>
             <tbody>
               {topKeywords.map((group) => (
                 <tr key={group.key}>
                   <td>{group.keyword}</td>
+                  <td>{categoryLabel(group.categoryId)}</td>
                   <td>{group.total}</td>
                   <td>{group.chat}</td>
                   <td>{group.phone}</td>
+                  <td>{group.aiAnswered}</td>
+                  <td>{group.adminAnswered}</td>
+                  <td>{group.pending}</td>
                 </tr>
               ))}
             </tbody>
@@ -1096,9 +1194,9 @@ export default function App() {
   if (!loadedOnce) return <div className="loading">불러오는 중입니다.</div>
 
   return (
-    <Shell loadError={error} syncing={loading} onLogout={logout}>
+    <Shell loadError={error} syncing={loading} onRefresh={refresh} onLogout={logout}>
       <Routes>
-        <Route path="/" element={<Stats store={store} />} />
+        <Route path="/" element={<Stats store={store} refresh={refresh} />} />
         <Route path="/chat" element={<ChatConsole store={store} />} />
         <Route path="/log-call" element={<LogCall store={store} refresh={refresh} />} />
         <Route path="/edit/categories" element={<CategoriesEditor store={store} refresh={refresh} />} />
